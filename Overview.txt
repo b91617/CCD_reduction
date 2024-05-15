@@ -1,0 +1,57 @@
+0723
+light_exp:     {240.0}
+light_filter:  {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+dark_exp:      {240.0}
+flat_filter:   {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+flat_exp:      {10.0, 5.0}
+dark_flat_exp: {10.0, 5.0}
+
+0724
+light_exp:     {240.0}
+light_filter:  {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+dark_exp:      {240.0, 90.0, 60.0}
+flat_filter:   {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+flat_exp:      {5.0}
+dark_flat_exp: {10.0, 5.0}
+
+0809
+light_exp:     {240.0}
+light_filter:  {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+dark_exp:      {240.0}
+flat_filter:   {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+flat_exp:      {5.68, 6.25, 7.47, 6.83, 7.59, 10.41, 11.73, 9.4, 13.43, 8.57, 15.72, 18.7, 22.72, 28.0, 30.0}
+dark_flat_exp: {60.0}
+
+0810
+light_exp:     {240.0}
+light_filter:  {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+dark_exp:      {240.0}
+
+0811
+light_exp:     {240.0}
+light_filter:  {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+dark_exp:      {240.0}
+flat_filter:   {'zp_Astrodon_2019', 'Y_Astrodon_2017'}
+flat_exp:      {6.05, 6.74, 8.59, 8.32, 7.43, 9.49, 8.15, 13.23, 7.74, 7.64, 7.78, 8.51, 19.62, 24.74, 29.06}
+dark_flat_exp: {60.0}
+
+0909
+light_exp:     {120.0, 240.0}
+light_filter:  {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+dark_exp:      {120.0, 240.0}
+flat_filter:   {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+flat_exp:      {5.0}
+dark_flat_exp: {5.0}
+
+0910
+light_exp:     {240.0, 120.0}
+light_filter:  {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+dark_exp:      {120.0, 240.0}
+
+0915
+light_exp:     {120.0, 240.0}
+light_filter:  {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+dark_exp:      {120.0, 240.0}
+flat_filter:   {'Y_Astrodon_2017', 'zp_Astrodon_2019'}
+flat_exp:      {30.0}
+dark_flat_exp: {30.0}
