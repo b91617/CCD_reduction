@@ -4,179 +4,21 @@ import os
 from astropy import units
 from astropy.nddata import CCDData
 from astropy.stats import mad_std
-import ccdproc as ccdp
+from ccdproc import ImageFileCollection, combine, subtract_bias, subtract_dark, flat_correct
 import numpy as np
 
-FOLDER          = 'LOT20220910'
-CALIBRATED_DIR  = FOLDER + '/calibrated_data'
-BIAS_DIR        = FOLDER + '/bias'
-DARK_DIR        = FOLDER + '/dark'
-FLAT_DIR        = FOLDER + '/flat'
-DARK_FLAT_DIR   = FOLDER + '/dark flat'
-LIGHT_DIR       = FOLDER + '/cngeow'
-RDCED_FLATS_DIR = CALIBRATED_DIR + '/reduced_flats'
-REDUCED_LIGHT   = CALIBRATED_DIR + '/reduced_lights'
+# PATH INFO
+FOLDER        = os.path.join(os.getcwd(), 'test', 'LOT20220724')
 
-MEM_LIM = 10e9
+BIAS_DIR      = os.path.join(FOLDER, 'bias')
+DARK_DIR      = os.path.join(FOLDER, 'dark')
+FLAT_DIR      = os.path.join(FOLDER, 'flat')
+DARK_FLAT_DIR = os.path.join(FOLDER, 'dark flat')
+LIGHT_DIR     = os.path.join(FOLDER, 'cngeow')
 
-
-Path('.', CALIBRATED_DIR).mkdir(exist_ok = True)
-calibrated_path = Path(CALIBRATED_DIR)
-
-Path('.', REDUCED_LIGHT).mkdir(exist_ok = True)
-lights_path = Path(REDUCED_LIGHT)
+MEM_LIM = 10e9  # bytes
 
 
-# Bias
-bias_files = ccdp.ImageFileCollection(Path(BIAS_DIR))
-
-bias_list = bias_files.files_filtered(imagetyp = 'bias',
-                                      include_path = True)
-
-combined_bias = ccdp.combine(bias_list,
-                             method = 'average',
-                             sigma_clip = True,
-                             sigma_clip_low_thresh = 5,
-                             sigma_clip_high_thresh = 5,
-                             sigma_clip_func = np.ma.median,
-                             sigma_clip_dev_func = mad_std,
-                             mem_limit = MEM_LIM,
-                             unit = 'adu')
-                             
-combined_bias.meta['combined'] = True
-combined_bias.write(calibrated_path / 'combined_bias.fit', overwrite = True)
-
-
-# Dark
-dark_files = ccdp.ImageFileCollection(Path(DARK_DIR))
-dark_exp_time = set(dark_files.summary['exptime'])
-
-for exp_time in dark_exp_time:
-    darks_list = dark_files.files_filtered(imagetyp = 'dark',
-                                           exptime = exp_time,
-                                           include_path = True)
-
-    combined_dark = ccdp.combine(darks_list,
-                                 method = 'average',
-                                 sigma_clip = True,
-                                 sigma_clip_low_thresh = 5,
-                                 sigma_clip_high_thresh = 5,
-                                 sigma_clip_func = np.ma.median,
-                                 signma_clip_dev_func = mad_std,
-                                 mem_limit = MEM_LIM,
-                                 unit = 'adu')
-
-    combined_dark.meta['combined'] = True               
-    combined_dark.write(calibrated_path / 'combined_dark_{}.fit'.format(exp_time), overwrite = True)
-
-
-# Flat
-if os.path.isdir(FLAT_DIR) is True:
-    Path('.', RDCED_FLATS_DIR).mkdir(exist_ok = True)
-    flats_path = Path(RDCED_FLATS_DIR)
-
-    flat_files = ccdp.ImageFileCollection(Path(FLAT_DIR))
-    a_flat = CCDData.read(flat_files.files_filtered(imagetyp='flat', include_path=True)[0], unit='adu')
-
-    flat_filter = set(flat_files.summary['filter'])
-    flat_exp_time = set(flat_files.summary['exptime'])
-
-    def inv_median(a):
-        return 1 / np.median(a)
-
-    for flt in flat_filter:
-        flat_list = flat_files.files_filtered(imagetyp = 'flat',
-                                            filter = flt,
-                                            include_path = True)
-        combined_flat = ccdp.combine(flat_list,
-                                    method = 'average',
-                                    scale = inv_median,
-                                    sigma_clip = True,
-                                    sigma_clip_low_thresh = 5,
-                                    sigma_clip_high_thresh = 5,
-                                    sigma_clip_func = np.ma.median,
-                                    signma_clip_dev_func = mad_std,
-                                    mem_limit = MEM_LIM,
-                                    unit = 'adu')
-                                    
-        combined_flat.meta['combined'] = True
-        combined_flat.write(calibrated_path / 'combined_flat_{}_{}.fit'.format(combined_flat.header['exptime'], flt), overwrite = True)
-
-
-    # Dark Flat
-    dark_flat_files = ccdp.ImageFileCollection(Path(DARK_FLAT_DIR))
-
-    dark_falt_exp_time = set(dark_flat_files.summary['exptime'])
-
-    for exp_time in dark_falt_exp_time:
-        darks_flat_list = dark_flat_files.files_filtered(imagetyp = 'dark',
-                                                        exptime = exp_time,
-                                                        include_path = True)
-
-        combined_dark_flat = ccdp.combine(darks_flat_list,
-                                        method = 'average',
-                                        sigma_clip = True,
-                                        sigma_clip_low_thresh = 5,
-                                        sigma_clip_high_thresh = 5,
-                                        sigma_clip_func = np.ma.median,
-                                        signma_clip_dev_func = mad_std,
-                                        mem_limit = MEM_LIM,
-                                        unit = 'adu')
-                                        
-        combined_dark_flat.meta['combined'] = True
-        combined_dark_flat.write(calibrated_path / 'combined_dark_flat_{}.fit'.format(exp_time), overwrite = True)
-
-
-    #Flat Reduction
-    def find_nearest_dark_exposure(image, dark_exposure_times, tolerance=60):
-
-        dark_exposures = np.array(list(dark_exposure_times))
-        idx = np.argmin(np.abs(dark_exposures - image.header['exptime']))
-        closest_dark_exposure = dark_exposures[idx]
-
-        if (tolerance is not None and 
-            np.abs(image.header['exptime'] - closest_dark_exposure) > tolerance):
-            
-            raise RuntimeError('Closest dark exposure time is {} for flat of exposure '
-                            'time {}.'.format(closest_dark_exposure, image.header['exptime']))
-            
-        
-        return closest_dark_exposure
-
-    calibrate_files = ccdp.ImageFileCollection(calibrated_path)
-
-    combined_darks = {ccd.header['exptime']: ccd for ccd in calibrate_files.ccds(imagetyp='dark', combined=True)}
-    combined_flats = {ccd.header['filter']: ccd for ccd in calibrate_files.ccds(imagetyp='flat', combined=True)}
-    combined_dark_flats = {ccd.header['exptime']: ccd for ccd in calibrate_files.ccds(imagetyp='dark', combined=True)}
-
-    for flats, flats_fname in calibrate_files.ccds(imagetyp='flat',
-                                                return_fname=True,
-                                                ccd_kwargs=dict(unit='adu')):
-
-        reduced_flat = ccdp.subtract_bias(flats, combined_bias)
-
-        closest_dark = find_nearest_dark_exposure(reduced_flat, combined_darks.keys())
-        reduced_flat = ccdp.subtract_dark(reduced_flat,
-                                        combined_darks[closest_dark], 
-                                        exposure_time='exptime',
-                                        exposure_unit=units.second,
-                                        scale=True)
-
-        reduced_flat.write(flats_path / 'reducted_flat_{}.fits'.format(reduced_flat.header['filter']), overwrite = True)
-
-else:
-    pass
-
-
-# Light (Single)
-light_files = ccdp.ImageFileCollection(Path(LIGHT_DIR))
-light_set = set(light_files.files_filtered(imagetyp = 'light', include_path = True))
-light_name = set(light_files.summary['file'])
-light_exp_time = set(light_files.summary['exptime'])
-light_filter = set(light_files.summary['filter'])
-
-
-# Reduction
 def find_nearest_dark_exposure(image, dark_exposure_times, tolerance=0.5):
 
     dark_exposures = np.array(list(dark_exposure_times))
@@ -187,40 +29,204 @@ def find_nearest_dark_exposure(image, dark_exposure_times, tolerance=0.5):
         np.abs(image.header['exptime'] - closest_dark_exposure) > tolerance):
         
         raise RuntimeError('Closest dark exposure time is {} for flat of exposure '
-                           'time {}.'.format(closest_dark_exposure, a_flat.header['exptime']))
-        
+                           'time {}.'.format(closest_dark_exposure, a_flat.header['exptime']))    
     
     return closest_dark_exposure
 
-for light, file_name in light_files.ccds(imagetyp='light',
-                                         return_fname=True,
-                                         ccd_kwargs=dict(unit='adu')):
+Path(FOLDER, 'calibrated_data').mkdir(exist_ok=True)
+calibrated_data_path = Path(FOLDER, 'calibrated_data')
 
-    reduced = ccdp.subtract_bias(light, combined_bias)
+# BIAS COMBINATION
+if os.path.isdir(BIAS_DIR) is True:
+    bias_files = ImageFileCollection(BIAS_DIR)
 
-    closest_dark = find_nearest_dark_exposure(reduced, combined_darks.keys())
-    reduced = ccdp.subtract_dark(reduced,
-                                 combined_darks[closest_dark],
-                                 exposure_time='exptime',
-                                 exposure_unit=units.second)
-    
-    if os.path.isdir(FLAT_DIR) is True:
-        reduced_flat_files = ccdp.ImageFileCollection(flats_path)
-        reduced_flats = {ccd.header['filter']: ccd for ccd in reduced_flat_files.ccds(imagetyp='flat', combined=True)}
+    bias_path_list = bias_files.files_filtered(imagetyp = 'bias',
+                                            include_path = True)
+
+    combined_bias = combine(bias_path_list,
+                            method = 'average',
+                            sigma_clip = True,
+                            sigma_clip_low_thresh = 5,
+                            sigma_clip_high_thresh = 5,
+                            sigma_clip_func = np.ma.median,
+                            sigma_clip_dev_func = mad_std,
+                            mem_limit = MEM_LIM,
+                            unit = 'adu')
+                                
+    combined_bias.meta['combined'] = True
+    combined_bias.write(calibrated_data_path / 'combined_bias.fits', overwrite = True)
+
+else:
+    print('\033[1m\033[91mBIAS NOT FOUND\033[0m')
+    pass
+
+
+# DARK CALIBRATION & COMBINATION
+if os.path.isdir(FLAT_DIR) is True:
+    dark_files = ImageFileCollection(DARK_DIR)
+    dark_exptime_set = set(dark_files.summary['exptime'])
+
+    for exptime in dark_exptime_set:
         
-        good_flat = reduced_flats[reduced.header['filter']]
-        reduced = ccdp.flat_correct(reduced, good_flat)
+        calibrated_dark_list = []
+        for dark_ccd, dark_name in dark_files.ccds(imagetyp = 'dark',
+                                                   return_fname = True,
+                                                   exptime = exptime,
+                                                   ccd_kwargs = dict(unit='adu')):
+            
+            calibrated_dark_list.append(subtract_bias(dark_ccd, combined_bias))
+
+        combined_dark = combine(calibrated_dark_list,
+                                method = 'average',
+                                sigma_clip = True,
+                                sigma_clip_low_thresh = 5,
+                                sigma_clip_high_thresh = 5,
+                                sigma_clip_func = np.ma.median,
+                                signma_clip_dev_func = mad_std,
+                                mem_limit = MEM_LIM,
+                                unit = 'adu')
+
+        combined_dark.meta['combined'] = True               
+        combined_dark.write(calibrated_data_path / f'combined_dark_{exptime}.fits', overwrite = True)
+
+else:
+    print('\033[1m\033[91mDARK NOT FOUND\033[0m')
+    pass
+
+
+# DARK FLAT CALIBRATION & COMBINATION
+if os.path.isdir(DARK_FLAT_DIR) is True:
+    dark_flat_files = ImageFileCollection(DARK_FLAT_DIR)
+    dark_falt_exptime_set = set(dark_flat_files.summary['exptime'])
+
+    for exptime in dark_falt_exptime_set:
+
+        calibrated_dark_flat = []
+        for dark_flat_ccd, dark_flat_name in dark_flat_files.ccds(imagetyp = 'dark',
+                                                                  return_fname = True,
+                                                                  exptime = exptime,
+                                                                  ccd_kwargs = dict(unit='adu')):
+            
+            calibrated_dark_flat.append(subtract_bias(dark_flat_ccd, combined_bias))
+
+    combined_dark_flat = combine(calibrated_dark_flat,
+                                 method = 'average',
+                                 sigma_clip = True,
+                                 sigma_clip_low_thresh = 5,
+                                 sigma_clip_high_thresh = 5,
+                                 sigma_clip_func = np.ma.median,
+                                 signma_clip_dev_func = mad_std,
+                                 mem_limit = MEM_LIM,
+                                 unit = 'adu')
+                                    
+    combined_dark_flat.meta['combined'] = True
+    combined_dark_flat.write(calibrated_data_path / f'combined_dark_flat_{exptime}.fits', overwrite = True)
+
+else:
+    print('\033[1m\033[91mDARK FLAT NOT FOUND\033[0m')
+    pass
+
+
+# FLAT CALIBRATION & COMBINATION
+if os.path.isdir(FLAT_DIR) is True:
+    flat_files = ImageFileCollection(FLAT_DIR)
+    a_flat = CCDData.read(flat_files.files_filtered(imagetyp = 'flat', include_path = True)[0], unit = 'adu')
+
+    def inv_median(a):
+        return 1 / np.median(a)
+
+    calibrated_files = ImageFileCollection(calibrated_data_path)
+    combined_dark_flat_dict = {ccd.header['exptime']: ccd for ccd in calibrated_files.ccds(imagetyp='dark', combined=True)}
+
+    flat_filter_set = set(flat_files.summary['filter'])
+
+    for filter in flat_filter_set:
+
+        calibrated_flat_list = []
+        for flat_ccd, flat_name in flat_files.ccds(imagetyp = 'flat',
+                                                   return_fname = True,
+                                                   filter = filter,
+                                                   ccd_kwargs = dict(unit='adu')):
+        
+            calibrated_flat = subtract_bias(flat_ccd, combined_bias)
+
+            closest_dark = find_nearest_dark_exposure(calibrated_flat, combined_dark_flat_dict.keys())
+
+            calibrated_flat_list.append(subtract_dark(calibrated_flat,
+                                                      combined_dark_flat_dict[closest_dark], 
+                                                      exposure_time = 'exptime',
+                                                      exposure_unit = units.second,
+                                                      scale = True))
+
+        combined_flat = combine(calibrated_flat_list,
+                                method = 'average',
+                                scale = inv_median,
+                                sigma_clip = True,
+                                sigma_clip_low_thresh = 5,
+                                sigma_clip_high_thresh = 5,
+                                sigma_clip_func = np.ma.median,
+                                signma_clip_dev_func = mad_std,
+                                mem_limit = MEM_LIM,
+                                unit = 'adu')
+                                    
+        combined_flat.meta['combined'] = True
+        combined_flat.write(calibrated_data_path / f'combined_flat_{filter}.fits', overwrite = True)
+
+else:
+    print('\033[1m\033[91mFLAT NOT FOUND\033[0m')
+    pass
+
+
+# LIGHT REDUCTION
+Path(FOLDER, 'calibrated_data', 'reduced_light_lights').mkdir(exist_ok=True)
+calibrated_lights_path = Path(calibrated_data_path, 'reduced_light_lights')
+
+light_files = ImageFileCollection(LIGHT_DIR)
+
+combined_dark_dict = {ccd.header['exptime']: ccd for ccd in calibrated_files.ccds(imagetyp='dark', combined=True)}
+
+for light_ccd, light_name in light_files.ccds(imagetyp='light',
+                                              return_fname=True,
+                                              ccd_kwargs=dict(unit='adu')):
+
+    if os.path.isdir(BIAS_DIR) is True:
+        reduced_light = subtract_bias(light_ccd, combined_bias)
+    else:
+        pass
+
+    if os.path.isdir(DARK_DIR) is True:
+        closest_dark = find_nearest_dark_exposure(reduced_light, combined_dark_dict.keys())
+
+        reduced_light = subtract_dark(reduced_light,
+                                      combined_dark_dict[closest_dark],
+                                      exposure_time = 'exptime',
+                                      exposure_unit = units.second,
+                                      scale = False)
     else:
         pass
     
-    reduced.write(lights_path / file_name, overwrite = True)
+    if os.path.isdir(FLAT_DIR) is True:
+        calibrated_flat_dict = {ccd.header['filter']: ccd for ccd in calibrated_files.ccds(imagetyp='flat', combined=True)}
+        print(calibrated_flat_dict.keys())
+        print(reduced_light.header['filter'])
+        combined_flat = calibrated_flat_dict[reduced_light.header['filter']]
+        reduced_light = flat_correct(reduced_light, combined_flat)
+    else:
+        pass
+    
+    reduced_light.write(calibrated_lights_path / f'{light_name}_calibrated', overwrite = True)
 
+print(f'{FOLDER} \033[1m\033[32mDONE REDUCTION\033[0m')
 
-#Info
+# LOG
+light_exp_time   = set(light_files.summary['exptime'])
+light_filter     = set(light_files.summary['filter'])
+flat_exptime_set = set(flat_files.summary['exptime'])
+
+print('\033[1mLOG:\033[0m')
 print('light_exp:    ', light_exp_time)
 print('light_filter: ', light_filter)
-print('dark_exp:     ', dark_exp_time)
-print('flat_filter:  ', flat_filter)
-print('flat_exp:     ', flat_exp_time)
-print('dark_flat_exp:', dark_falt_exp_time)
-# %%
+print('dark_exp:     ', dark_exptime_set)
+print('flat_filter:  ', flat_filter_set)
+print('flat_exp:     ', flat_exptime_set)
+print('dark_flat_exp:', dark_falt_exptime_set)
