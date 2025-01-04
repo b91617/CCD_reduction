@@ -8,13 +8,13 @@ from ccdproc import ImageFileCollection, combine, subtract_bias, subtract_dark, 
 import numpy as np
 
 # PATH INFO
-FOLDER        = os.path.join(os.getcwd(), 'test', 'LOT20220724')
+WORKING_DIR   = os.path.join(os.getcwd(), 'test', 'LOT20220724')
 
-BIAS_DIR      = os.path.join(FOLDER, 'bias')
-DARK_DIR      = os.path.join(FOLDER, 'dark')
-FLAT_DIR      = os.path.join(FOLDER, 'flat')
-DARK_FLAT_DIR = os.path.join(FOLDER, 'dark flat')
-LIGHT_DIR     = os.path.join(FOLDER, 'cngeow')
+BIAS_DIR      = Path(WORKING_DIR, 'bias')
+DARK_DIR      = Path(WORKING_DIR, 'dark')
+FLAT_DIR      = Path(WORKING_DIR, 'flat')
+DARK_FLAT_DIR = Path(WORKING_DIR, 'dark flat')
+LIGHT_DIR     = Path(WORKING_DIR, 'cngeow')
 
 MEM_LIM = 10e9  # bytes
 
@@ -33,8 +33,11 @@ def find_nearest_dark_exposure(image, dark_exposure_times, tolerance=0.5):
     
     return closest_dark_exposure
 
-Path(FOLDER, 'calibrated_data').mkdir(exist_ok=True)
-calibrated_data_path = Path(FOLDER, 'calibrated_data')
+
+print('CURRENT WORKING DIRECTORY:', WORKING_DIR)
+
+Path(WORKING_DIR, 'calibrated_data').mkdir(exist_ok=True)
+calibrated_data_path = Path(WORKING_DIR, 'calibrated_data')
 
 # BIAS COMBINATION
 if os.path.isdir(BIAS_DIR) is True:
@@ -178,7 +181,7 @@ else:
 
 
 # LIGHT REDUCTION
-Path(FOLDER, 'calibrated_data', 'reduced_light_lights').mkdir(exist_ok=True)
+Path(WORKING_DIR, 'calibrated_data', 'reduced_light_lights').mkdir(exist_ok=True)
 calibrated_lights_path = Path(calibrated_data_path, 'reduced_light_lights')
 
 light_files = ImageFileCollection(LIGHT_DIR)
@@ -216,7 +219,7 @@ for light_ccd, light_name in light_files.ccds(imagetyp='light',
     
     reduced_light.write(calibrated_lights_path / f'{light_name}_calibrated', overwrite = True)
 
-print(f'{FOLDER} \033[1m\033[32mDONE REDUCTION\033[0m')
+print(f'{WORKING_DIR} \033[1m\033[32mDONE REDUCTION\033[0m')
 
 # LOG
 light_exp_time   = set(light_files.summary['exptime'])
